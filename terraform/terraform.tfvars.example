@@ -1,0 +1,50 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored.
+# Variables without a default in variables.tf are REQUIRED; the rest are shown
+# here with their defaults so you can override them.
+
+# --- Required ---------------------------------------------------------------
+
+# Public Azure DNS zone you own and the resource group that hosts it.
+# The cluster's API + *.apps records are created under
+# okd.<base_domain>. Override defaults if your zone or RG differ.
+# base_domain             = "example.com"
+# dns_zone_resource_group = "resources"
+
+# Pre-uploaded SCOS VHD page blob. Persist this in a long-lived storage account
+# OUTSIDE the cluster RG so destroy/recreate never touches it. See
+# scripts/03-upload-vhd.sh for the upload flow.
+scos_vhd_blob_uri = "https://<your-storage-acct>.blob.core.windows.net/vhd/scos.vhd"
+
+# SSH public key embedded in node ignitions and on the Azure VMs (admin user
+# is `core`).
+ssh_public_key = "ssh-rsa AAAA... your-key-here"
+
+# Service Principal with "DNS Zone Contributor" on the public DNS zone above.
+# Used by cert-manager's DNS-01 solver for the Let's Encrypt wildcard cert.
+cert_manager_azure_client_id       = "00000000-0000-0000-0000-000000000000"
+cert_manager_azure_client_secret   = "REPLACE_ME"
+cert_manager_azure_tenant_id       = "00000000-0000-0000-0000-000000000000"
+cert_manager_azure_subscription_id = "00000000-0000-0000-0000-000000000000"
+
+# --- Optional (defaults shown) ---------------------------------------------
+
+# Azure region for the cluster RG, VNet, VMs, LBs, etc.
+# location = "francecentral"
+
+# Contact email for the Let's Encrypt ACME account.
+# letsencrypt_email = "you@example.com"
+
+# Topology. master_count must be 1 or 3; SNO (1) forbids workers.
+# master_count   = 3 # 1 = SNO, 3 = HA
+# worker_count   = 0 # 0 = compact (router on masters), >0 = router on workers
+# master_vm_size    = "Standard_D8s_v3"
+# worker_vm_size    = "Standard_D4s_v3"
+# bootstrap_vm_size = "Standard_D4s_v3" # ignored in SNO mode
+
+# Extra tags applied to every Azure resource (the cluster ownership tag is
+# added automatically on top of these).
+# tags = {
+#   SecurityControl = "Ignore"
+#   CostControl     = "Ignore"
+#   owner           = "you"
+# }

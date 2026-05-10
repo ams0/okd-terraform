@@ -1,0 +1,38 @@
+# Terraform
+terraform/.terraform/
+# .terraform.lock.hcl IS committed (provider pinning for reproducible installs).
+**/terraform.tfstate
+**/terraform.tfstate.backup
+terraform/terraform.tfvars
+terraform/tfplan
+
+# openshift-install binary (~600MB) — fetched on demand by
+# scripts/00-fetch-openshift-install.sh
+.bin/
+
+# Claude Code local session state
+.claude/
+
+# Cluster install artifacts (contain secrets — kubeconfig, kubeadmin password,
+# ignition with embedded SAS, openshift_install_state with baked credentials,
+# cluster-api manifests with the Azure SP client secret in plaintext, etc.).
+# Whitelist approach: ignore everything in install/ except the template.
+install/*
+!install/install-config.yaml.tpl
+!install/.gitkeep
+
+# Rendered cert-manager manifests with secrets baked in
+cert-manager/rendered/
+
+# Local install-config copy
+install/install-config.yaml
+
+# Pull secret + Azure cloud config
+*pull-secret*
+*azure-cloud-config*
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

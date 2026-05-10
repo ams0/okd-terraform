@@ -1,0 +1,14 @@
+---
+- name: Configure OKD Cluster
+  hosts: okd
+  become: yes
+  tasks:
+    - name: Ensure prerequisites are installed
+      yum:
+        name:
+          - git
+          - wget
+        state: present
+      when: ansible_os_family == "RedHat"
+
+    # Add more configuration tasks here

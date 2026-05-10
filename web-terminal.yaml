@@ -1,0 +1,14 @@
+# The openshift-operators namespace ships with a default `global-operators`
+# OperatorGroup (AllNamespaces mode). Do not create another one here — multiple
+# OperatorGroups in the same namespace block OLM from creating InstallPlans.
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: web-terminal
+  namespace: openshift-operators
+spec:
+  channel: fast
+  installPlanApproval: Automatic
+  name: web-terminal
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
