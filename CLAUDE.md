@@ -29,8 +29,12 @@ is not used.
 - Service Principal with **DNS Zone Contributor** on that zone (cert-manager
   DNS-01 solver)
 
-`openshift-install` is fetched on demand into `.bin/` by
-`scripts/00-fetch-openshift-install.sh` — no manual install needed.
+`openshift-install` is fetched and kept up to date in `.bin/` by
+`scripts/00-fetch-openshift-install.sh` — no manual install needed. It resolves
+the newest stable release from `okd-project/okd` (NOT the retired
+`okd-project/okd-scos` repo, which stopped publishing at 4.19 ec) by picking the
+highest version tag rather than trusting GitHub's `releases/latest` flag, which
+points at an older stable branch. It upgrades in place but never downgrades.
 
 ## Commands
 
@@ -123,13 +127,15 @@ This is implemented in `terraform/storage.tf` and `terraform/vms.tf`.
 
 `scripts/04-bringup.sh`:
 
-1. Fetch `openshift-install` if missing → `.bin/openshift-install`
-2. If terraform state is empty *or* `master.ign` is missing → wipe `install/`
+1. Fetch or update `openshift-install` → `.bin/openshift-install`
+2. `terraform init` (always; apply fails when `.terraform/providers` drifts
+   from the lock file, and `state_count` needs an initialized backend)
+3. If terraform state is empty *or* `master.ign` is missing → wipe `install/`
    artifacts and regenerate (`create manifests` + `create ignition-configs`,
    or `create single-node-ignition-config` for SNO)
-3. For HA mode: strip `publicZone` / `privateZone` from
+4. For HA mode: strip `publicZone` / `privateZone` from
    `install/manifests/cluster-dns-02-config.yml` before baking ignitions
-4. `terraform apply` (passing through any extra args)
+5. `terraform apply` (passing through any extra args)
 
 `cert-manager/scripts/apply.sh` runs from a `null_resource` in
 `terraform/cert_manager.tf` once the API is reachable. It waits for

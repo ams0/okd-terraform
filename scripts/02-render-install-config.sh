@@ -14,6 +14,16 @@ PULL_SECRET_FILE="${PULL_SECRET_FILE:-${HOME}/Downloads/pull-secret.txt}"
 TFVARS="$ROOT/terraform/terraform.tfvars"
 DNS_RG="${DNS_RG:-resources}"
 
+# Fail with something readable instead of a Python traceback from inside the
+# heredoc — a missing pull secret is the single most common first-run blocker.
+[[ -f "$PULL_SECRET_FILE" ]] || {
+  echo "FATAL: pull secret not found at $PULL_SECRET_FILE" >&2
+  echo "       Download it from https://console.redhat.com/openshift/install/pull-secret" >&2
+  echo "       and save it there, or point PULL_SECRET_FILE at another path." >&2
+  exit 1
+}
+[[ -f "$TFVARS" ]] || { echo "FATAL: $TFVARS missing (copy terraform.tfvars.example)" >&2; exit 1; }
+
 python3 - "$TPL" "$OUT" "$PULL_SECRET_FILE" "$TFVARS" "$DNS_RG" <<'PY'
 import re, sys
 

@@ -33,12 +33,16 @@ scripts/04-bringup.sh -auto-approve
 
 This script:
 
-1. Fetches `openshift-install` into `.bin/` if missing
-   (via `scripts/00-fetch-openshift-install.sh`; pin a release with
-   `OKD_VERSION=4.x.y-okd-scos.N`, otherwise the latest tag from
-   [okd-project/okd-scos](https://github.com/okd-project/okd-scos/releases)
-   is used)
-2. Detects whether terraform state is empty (fresh checkout or post-destroy)
+1. Fetches or updates `openshift-install` in `.bin/`
+   (via `scripts/00-fetch-openshift-install.sh`). It installs the newest
+   stable release from
+   [okd-project/okd](https://github.com/okd-project/okd/releases) and upgrades
+   an existing binary when a newer one ships. It never downgrades. Overrides:
+   `OKD_VERSION=4.x.y-okd-scos.N` pins an exact release,
+   `OKD_SKIP_UPDATE_CHECK=1` keeps the current binary offline, and
+   `OKD_ALLOW_PRERELEASE=1` also considers `ec` builds
+2. Runs `terraform init`, then detects whether terraform state is empty
+   (fresh checkout or post-destroy)
 3. If so, wipes stale `install/` artifacts and regenerates them via
    `openshift-install create manifests + ignition-configs` — this produces a
    fresh infraID and a fresh 24h MCS bootstrap token
