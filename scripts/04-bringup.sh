@@ -21,15 +21,34 @@ INSTALL="$ROOT/install"
 TERRAFORM="$ROOT/terraform"
 INSTALLER="$ROOT/.bin/openshift-install"
 
-if [[ ! -x "$INSTALLER" ]]; then
-  echo "==> $INSTALLER missing → fetching"
-  "$ROOT/scripts/00-fetch-openshift-install.sh"
-fi
+# Always run the fetcher: it installs the binary when missing and upgrades it
+# when a newer OKD-SCOS release exists. It self-skips when already current, and
+# never downgrades. Set OKD_SKIP_UPDATE_CHECK=1 to stay offline, or pin an
+# exact release with OKD_VERSION.
+"$ROOT/scripts/00-fetch-openshift-install.sh"
+[[ -x "$INSTALLER" ]] || { echo "FATAL: $INSTALLER still missing after fetch" >&2; exit 1; }
 [[ -f "$INSTALL/install-config.yaml.tpl" ]] || { echo "FATAL: $INSTALL/install-config.yaml.tpl missing" >&2; exit 1; }
 
+# Count resources in terraform state. Prints a single integer, always.
+# NOTE: must not use a pipeline whose failure escapes -o pipefail; a failing
+# `terraform state list` used to make this emit "0\n0" and blow up the [[ ]]
+# arithmetic comparison below.
 state_count() {
-  ( cd "$TERRAFORM" && terraform state list 2>/dev/null | wc -l | tr -d ' ' ) || echo 0
+  local out
+  out="$(cd "$TERRAFORM" && terraform state list 2>/dev/null)" || out=""
+  if [[ -z "$out" ]]; then
+    echo 0
+  else
+    printf '%s\n' "$out" | grep -c . || true
+  fi
 }
+
+# terraform apply refuses to run when .terraform/providers doesn't match the
+# lock file (fresh checkout, pruned plugin cache, provider version bump). init
+# is idempotent and cheap when already initialized, so just always run it —
+# and do it before state_count(), which needs an initialized backend.
+echo "==> terraform init"
+( cd "$TERRAFORM" && terraform init -input=false )
 
 needs_regen=0
 if [[ ! -f "$INSTALL/master.ign" || ! -f "$INSTALL/metadata.json" ]]; then
@@ -39,7 +58,8 @@ elif [[ "$(state_count)" -lt 5 ]]; then
   echo "==> terraform state is empty → fresh bringup, regen"
   needs_regen=1
 else
-  age_h=$(( ( $(date +%s) - $(stat -f %m "$INSTALL/master.ign") ) / 3600 ))
+  mtime=$(stat -f %m "$INSTALL/master.ign" 2>/dev/null || stat -c %Y "$INSTALL/master.ign")
+  age_h=$(( ( $(date +%s) - mtime ) / 3600 ))
   echo "==> existing cluster (master.ign is ${age_h}h old) — skipping regen"
 fi
 
