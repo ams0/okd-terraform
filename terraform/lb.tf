@@ -9,6 +9,18 @@ resource "azurerm_public_ip" "api" {
   allocation_method   = "Static"
   sku                 = "Standard"
   tags                = local.base_tags
+
+  # Azure stamps an `ip_tags` entry ("FirstPartyUsage" = "/Unprivileged") onto
+  # public IPs server-side after creation. We never set ip_tags, so TF reads it
+  # as drift and — because ip_tags is ForceNew — plans a destroy/recreate. That
+  # then fails outright, since Azure refuses to delete a PIP still attached to
+  # an LB frontend. Ignoring it keeps re-applies idempotent and, more
+  # importantly, stops the API/apps public IPs from ever being recycled (which
+  # would invalidate the DNS records and the issued wildcard cert).
+  lifecycle {
+    ignore_changes = [ip_tags]
+  }
+
 }
 
 resource "azurerm_lb" "external" {
@@ -154,6 +166,18 @@ resource "azurerm_public_ip" "router" {
   allocation_method   = "Static"
   sku                 = "Standard"
   tags                = local.base_tags
+
+  # Azure stamps an `ip_tags` entry ("FirstPartyUsage" = "/Unprivileged") onto
+  # public IPs server-side after creation. We never set ip_tags, so TF reads it
+  # as drift and — because ip_tags is ForceNew — plans a destroy/recreate. That
+  # then fails outright, since Azure refuses to delete a PIP still attached to
+  # an LB frontend. Ignoring it keeps re-applies idempotent and, more
+  # importantly, stops the API/apps public IPs from ever being recycled (which
+  # would invalidate the DNS records and the issued wildcard cert).
+  lifecycle {
+    ignore_changes = [ip_tags]
+  }
+
 }
 
 resource "azurerm_lb" "router" {
