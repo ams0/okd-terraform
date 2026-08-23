@@ -5,6 +5,8 @@ terraform/.terraform/
 **/terraform.tfstate.backup
 terraform/terraform.tfvars
 terraform/tfplan
+# transient state lock, present only while an apply/destroy is in flight
+**/.terraform.tfstate.lock.info
 
 # openshift-install binary (~600MB) — fetched on demand by
 # scripts/00-fetch-openshift-install.sh
