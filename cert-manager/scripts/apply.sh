@@ -29,8 +29,42 @@ echo "==> Cluster API ready"
 # Wait only for kube-apiserver to be Available (others — authentication, console,
 # ingress — can't converge until we switch the IngressController to HostNetwork
 # below, so waiting on all clusteroperators here would deadlock on initial bringup).
+#
+# Two traps here, both hit on a fresh bringup:
+#   1. The /healthz gate above is satisfied by the BOOTSTRAP node's temporary
+#      control plane, which answers long before the CVO has created any
+#      ClusterOperator resources. `kubectl wait` does not wait for a resource to
+#      exist — it exits immediately with NotFound — so it must not be the first
+#      thing that touches the CR. Poll for existence first.
+#   2. The API connection drops during the bootstrap -> permanent control plane
+#      handoff. Any single kubectl call can fail transiently, so both loops
+#      tolerate errors instead of treating them as fatal.
+CO_TIMEOUT="${CO_TIMEOUT:-2700}"  # 45 min
+co_deadline=$(( $(date +%s) + CO_TIMEOUT ))
+
+echo "==> Waiting up to ${CO_TIMEOUT}s for kube-apiserver clusteroperator to exist"
+until kubectl --request-timeout=10s get clusteroperator kube-apiserver >/dev/null 2>&1; do
+  if (( $(date +%s) >= co_deadline )); then
+    echo "kube-apiserver clusteroperator was never created within ${CO_TIMEOUT}s" >&2
+    echo "The control plane is likely still bootstrapping; check the bootstrap node console." >&2
+    exit 1
+  fi
+  echo "  $(date -u +%H:%M:%S) clusteroperators not created yet, retrying in 30s..."
+  sleep 30
+done
+
 echo "==> Waiting for kube-apiserver clusteroperator to be Available"
-kubectl wait --for=condition=Available clusteroperator/kube-apiserver --timeout=1800s
+until [[ "$(kubectl --request-timeout=10s get clusteroperator kube-apiserver \
+    -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' 2>/dev/null)" == "True" ]]; do
+  if (( $(date +%s) >= co_deadline )); then
+    echo "kube-apiserver clusteroperator did not become Available within ${CO_TIMEOUT}s" >&2
+    kubectl get clusteroperator kube-apiserver >&2 || true
+    exit 1
+  fi
+  echo "  $(date -u +%H:%M:%S) kube-apiserver not Available yet, retrying in 30s..."
+  sleep 30
+done
+echo "==> kube-apiserver clusteroperator Available"
 
 # Defense-in-depth: clear publicZone/privateZone from the cluster DNS config so
 # the cluster-ingress-operator does NOT take ownership of *.apps.<base_domain>
