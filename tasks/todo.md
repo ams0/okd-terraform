@@ -10,7 +10,7 @@ valid Let's Encrypt chain.
 |---|---|---|
 | Platform | `platform: none` | `baremetal` requires BMC hosts; Proxmox VMs have none (verified) |
 | API + ingress VIP | keepalived + HAProxy static pods via MachineConfig | Self-contained, no extra VM, no SPOF |
-| Node addressing | DHCP **with reservations** (TF pins MACs) | Static pod backend lists need stable control-plane IPs |
+| Node addressing | OPNsense **static DHCP mappings** to fixed IPs outside the pool (TF pins MACs) | In-guest static config is impossible: Ignition fetches its real config from api-int:22623 *before* it writes any file it could configure the NIC with |
 | Public DNS | Stays on Azure DNS | cert-manager DNS-01 + wildcard cert flow carry over untouched |
 | Private/split DNS | Dropped | `platform: none` renders no `publicZone`/`privateZone` (verified) |
 | TF provider | `bpg/proxmox` | Actively maintained; PVE 9.x support |
@@ -33,7 +33,10 @@ valid Let's Encrypt chain.
 - [ ] Snippets enabled on the target datastore (Datacenter → Storage; off by default)
 - [ ] `Datastore.AllocateTemplate`, `Sys.Audit`, `Sys.Modify` for image download
 - [ ] Two free IPs on the node subnet for the API and ingress VIPs
-- [ ] DHCP reservations for the MACs Terraform assigns
+- [ ] OPNsense static DHCP mappings for the MACs Terraform assigns — one per
+      master **plus one for bootstrap**, at fixed addresses outside the dynamic pool
+- [ ] Proxmox service account + API token (`--privsep=0`) and an SSH key for
+      snippet upload
 - [ ] Azure SP with DNS Zone Contributor (unchanged, for cert-manager)
 
 ## Phase 1 — Scaffolding
@@ -80,11 +83,32 @@ valid Let's Encrypt chain.
 - [x] Delete `lb.tf`, `storage.tf`, `network.tf`, `dns_private.tf`
 - [ ] Rewrite `CLAUDE.md` + `README.md` for Proxmox
 
+## Why not true in-guest static IPs
+
+`master.ign` is a 2 KB Ignition *pointer* config:
+
+    config.merge.source = https://api-int.<domain>:22623/config/master
+
+Ignition therefore needs a working NIC during its **fetch** stage, which runs
+before the **files** stage that would write any NetworkManager keyfile. A
+static address delivered through Ignition cannot be in effect when Ignition
+needs the network, so RHCOS/SCOS static addressing is normally done with `ip=`
+kernel arguments in the initramfs. Booting from a disk image on Proxmox gives
+us nowhere to inject those without rebuilding the image's bootloader.
+
+Static DHCP mappings give the same outcome — fixed, known addresses outside
+the dynamic pool — with no image surgery.
+
 ## Open risks
 
 - keepalived/HAProxy static pods are the piece OKD normally generates via
   `runtimecfg`. Ours are hand-rolled, so VIP failover and the bootstrap
   ordering (VIP must exist before the API does) need real testing.
+- The API backend list must include the **bootstrap** node while it is serving
+  the API, then stop including it. Static pods only run on cluster nodes, so
+  the API VIP has to work before any master is up — decide whether keepalived
+  also runs on bootstrap, or whether HAProxy simply lists bootstrap as a
+  backend that fails its health check once gone.
 - SCOS qcow2 must boot under the chosen machine type / firmware; may need
   `q35` + UEFI vs `pc` + SeaBIOS. Verify on first VM.
 - `openshift-install` still needs `install-config.yaml` to satisfy
