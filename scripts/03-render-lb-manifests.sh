@@ -209,7 +209,7 @@ if mode == "manifests":
     # json is valid yaml, and emitting it avoids a pyyaml dependency
     with open(out, "w") as f:
         json.dump(mc, f, indent=2)
-    print("wrote %s (api_vip=%s ingress_vip=%s iface=%s)" % (out, api_vip, ingress_vip, iface))
+    print("wrote %s (api_vip=%s ingress_vip=%s iface=%s)" % (out, api_vip, ingress_vip, iface_node))
 
 elif mode == "bootstrap":
     ign_path = os.path.join(install_dir, "bootstrap.ign")
