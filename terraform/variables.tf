@@ -25,10 +25,23 @@ variable "proxmox_ssh_username" {
   default     = "root"
 }
 
+variable "proxmox_ssh_private_key_file" {
+  description = "Path to a private key that can SSH into every node in proxmox_nodes. Snippet upload runs over SSH, and with API-token auth the provider cannot inherit a credential from the token, so either this or proxmox_ssh_agent must be set. Note the provider parses the key itself: if an OPENSSH-format key is rejected, convert a copy with `ssh-keygen -p -m PEM -f <copy>`."
+  type        = string
+  default     = null
+}
+
 variable "proxmox_ssh_agent" {
-  description = "Use the local SSH agent for the Proxmox SSH connection"
+  description = "Fall back to the local SSH agent instead of proxmox_ssh_private_key_file. Ignored when a key file is given."
   type        = bool
-  default     = true
+  default     = false
+}
+
+check "ssh_credential_present" {
+  assert {
+    condition     = var.proxmox_ssh_private_key_file != null || var.proxmox_ssh_agent
+    error_message = "Snippet upload needs SSH: set proxmox_ssh_private_key_file, or enable proxmox_ssh_agent with the key loaded."
+  }
 }
 
 variable "proxmox_nodes" {

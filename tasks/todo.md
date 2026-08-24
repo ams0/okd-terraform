@@ -30,7 +30,9 @@ valid Let's Encrypt chain.
 ## Prerequisites for the operator (document in README)
 
 - [x] Proxmox API token created (terraform@pve!provider)
-- [ ] SSH key in ssh-agent for the PVE nodes (snippet upload uses SSH, not the API)
+- [x] SSH key wired (~/.ssh/fromvolt, ed25519) — verified into pve1/2/3 as root,
+      /mnt/pve/cephfs/snippets writable on each, and a file written via pve1 reads
+      back identically from pve2 and pve3 (the shared-storage premise spreading needs)
 - [x] Snippets enabled on the target datastore — already on for `cephfs` (content: snippets,backup,import,iso,vztmpl; shared:1; path /mnt/pve/cephfs)
 - [ ] `Datastore.AllocateTemplate`, `Sys.Audit`, `Sys.Modify` for image download
 - [x] ~~`Import` content type~~ — not needed; SCOS ships gzipped so the image uses `iso` + `decompression_algorithm`
@@ -62,6 +64,16 @@ valid Let's Encrypt chain.
 - [x] `vms.tf`: rewrite for `proxmox_virtual_environment_vm` (bootstrap,
       masters, workers), pinned MACs, disk cloned from the downloaded image
 - [x] Preserve the SNO branch (bootstrap-in-place, no bootstrap VM)
+
+## Verified end-to-end so far
+
+- [x] `terraform plan` succeeds: 16 to add, 0 to change, 0 to destroy
+- [x] Masters land on pve1/pve2/pve3 (one per hypervisor)
+- [x] Pinned MACs match the OPNsense static mappings
+
+**Do not apply yet.** The ignitions in `install/` are the stale Azure ones
+(`platform: azure`); VMs built from them would boot and fail to bootstrap.
+Phase 6 has to land first.
 
 ## Phase 4 — On-node load balancing
 

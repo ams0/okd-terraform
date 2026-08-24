@@ -36,8 +36,12 @@ provider "proxmox" {
   # the REST API, so this block is required even though everything else here
   # is API-driven. Without it, ignition upload fails at apply time.
   ssh {
-    agent    = var.proxmox_ssh_agent
     username = var.proxmox_ssh_username
+
+    # An explicit key beats the agent: apply then does not depend on whatever
+    # happens to be loaded in the caller's ssh-agent.
+    private_key = var.proxmox_ssh_private_key_file != null ? file(pathexpand(var.proxmox_ssh_private_key_file)) : null
+    agent       = var.proxmox_ssh_private_key_file != null ? false : var.proxmox_ssh_agent
   }
 }
 
