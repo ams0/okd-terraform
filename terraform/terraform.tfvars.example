@@ -52,7 +52,8 @@ ingress_vip          = "192.168.228.51"
 # Guest-side NIC name keepalived binds the VIPs to. SCOS with a virtio NIC on
 # Proxmox normally gets ens18; check `ip link` on a booted node if the VIPs
 # never come up.
-vrrp_interface = "ens18"
+vrrp_interface_bootstrap = "ens18"
+vrrp_interface_node      = "br-ex"
 
 # ---------------------------------------------------------------------------
 # Node image

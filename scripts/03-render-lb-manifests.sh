@@ -58,7 +58,12 @@ def var(name, default=None):
 api_vip = var("api_vip")
 ingress_vip = var("ingress_vip")
 machine_cidr = var("machine_network_cidr")
-iface = var("vrrp_interface", "ens18")
+# OVN-Kubernetes moves the node IP from the physical NIC to the OVS bridge
+# br-ex once it takes over, so cluster nodes and the (OVN-free) bootstrap node
+# need different interfaces. Binding a VIP to ens18 on a master leaves it
+# unreachable even though keepalived reports MASTER state.
+iface_bootstrap = var("vrrp_interface_bootstrap", "ens18")
+iface_node = var("vrrp_interface_node", "br-ex")
 vrid_api = var("vrrp_router_id_api", "51")
 vrid_ingress = var("vrrp_router_id_ingress", "52")
 prefix_len = str(ipaddress.ip_network(machine_cidr).prefixlen)
@@ -78,6 +83,7 @@ PRIO = {
 
 def render_conf(role):
     base, weight = PRIO[role]
+    iface = iface_node if role == "master" else iface_bootstrap
     conf = open(os.path.join(lb_dir, "keepalived.conf.tpl")).read()
 
     # Bootstrap never runs a router, so it must not contend for the ingress VIP.

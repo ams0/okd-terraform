@@ -118,10 +118,16 @@ variable "ingress_vip" {
   type        = string
 }
 
-variable "vrrp_interface" {
-  description = "Interface name inside the guests that keepalived binds the VIPs to. SCOS on Proxmox with a virtio NIC normally gets `ens18`."
+variable "vrrp_interface_bootstrap" {
+  description = "Interface keepalived binds the API VIP to on the BOOTSTRAP node. Bootstrap runs no OVN, so this is the raw NIC — SCOS on Proxmox with a virtio NIC gets `ens18`."
   type        = string
   default     = "ens18"
+}
+
+variable "vrrp_interface_node" {
+  description = "Interface keepalived binds the VIPs to on CLUSTER nodes. OVN-Kubernetes moves the node IP off the physical NIC onto the OVS bridge `br-ex`, so a VIP placed on ens18 there is unreachable. Verify with `ip -br addr` on a joined node."
+  type        = string
+  default     = "br-ex"
 }
 
 variable "vrrp_router_id_api" {
