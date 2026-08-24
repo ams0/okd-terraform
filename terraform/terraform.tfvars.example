@@ -1,50 +1,72 @@
-# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored.
-# Variables without a default in variables.tf are REQUIRED; the rest are shown
-# here with their defaults so you can override them.
+# ---------------------------------------------------------------------------
+# Proxmox connection
+# ---------------------------------------------------------------------------
+proxmox_endpoint  = "https://pve.lan:8006/"
+proxmox_api_token = "root@pam!terraform=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+proxmox_node      = "pve"
 
-# --- Required ---------------------------------------------------------------
+# Snippet upload (the ignition files) goes over SSH, not the REST API.
+proxmox_ssh_username = "root"
 
-# Public Azure DNS zone you own and the resource group that hosts it.
-# The cluster's API + *.apps records are created under
-# okd.<base_domain>. Override defaults if your zone or RG differ.
-# base_domain             = "example.com"
-# dns_zone_resource_group = "resources"
+# Datastores. Before the first apply, under Datacenter > Storage enable:
+#   - `Snippets` on proxmox_snippet_datastore  (ignition delivery)
+#   - `Import`   on proxmox_iso_datastore      (SCOS qcow2)
+# Neither is on by default.
+proxmox_datastore         = "local-lvm"
+proxmox_iso_datastore     = "local"
+proxmox_snippet_datastore = "local"
+proxmox_snippet_path      = "/var/lib/vz/snippets"
 
-# Pre-uploaded SCOS VHD page blob. Persist this in a long-lived storage account
-# OUTSIDE the cluster RG so destroy/recreate never touches it. See
-# scripts/03-upload-vhd.sh for the upload flow.
-scos_vhd_blob_uri = "https://<your-storage-acct>.blob.core.windows.net/vhd/scos.vhd"
+proxmox_bridge = "vmbr0"
+# proxmox_vlan_id = 20
 
-# SSH public key embedded in node ignitions and on the Azure VMs (admin user
-# is `core`).
-ssh_public_key = "ssh-rsa AAAA... your-key-here"
+# ---------------------------------------------------------------------------
+# Cluster networking
+#
+# api_vip and ingress_vip must be free addresses on machine_network_cidr and
+# must NOT be inside the DHCP pool — keepalived assigns them, not DHCP.
+# ---------------------------------------------------------------------------
+machine_network_cidr = "192.168.1.0/24"
+api_vip              = "192.168.1.10"
+ingress_vip          = "192.168.1.11"
 
-# Service Principal with "DNS Zone Contributor" on the public DNS zone above.
-# Used by cert-manager's DNS-01 solver for the Let's Encrypt wildcard cert.
+# Guest-side NIC name keepalived binds the VIPs to. SCOS with a virtio NIC on
+# Proxmox normally gets ens18; check `ip link` on a booted node if the VIPs
+# never come up.
+vrrp_interface = "ens18"
+
+# ---------------------------------------------------------------------------
+# Node image
+#
+# Use the SCOS build matching the openshift-install release in .bin/
+# (`.bin/openshift-install version`).
+# ---------------------------------------------------------------------------
+scos_image_url      = "https://.../scos-9.0.qcow2"
+scos_image_checksum = null
+
+# ---------------------------------------------------------------------------
+# Topology
+#   master_count=3, worker_count=0  -> compact (default)
+#   master_count=3, worker_count=N  -> HA + workers
+#   master_count=1, worker_count=0  -> Single Node OpenShift
+# ---------------------------------------------------------------------------
+master_count = 3
+worker_count = 0
+
+# After the first plan, run `terraform output node_mac_addresses` and create
+# DHCP reservations for each. HAProxy's backend list needs stable
+# control-plane addresses across rebuilds.
+
+# ---------------------------------------------------------------------------
+# DNS + cert-manager (still Azure — Proxmox has no DNS service)
+# ---------------------------------------------------------------------------
+base_domain             = "example.com"
+dns_zone_resource_group = "resources"
+letsencrypt_email       = "you@example.com"
+
 cert_manager_azure_client_id       = "00000000-0000-0000-0000-000000000000"
-cert_manager_azure_client_secret   = "REPLACE_ME"
+cert_manager_azure_client_secret   = "REDACTED"
 cert_manager_azure_tenant_id       = "00000000-0000-0000-0000-000000000000"
 cert_manager_azure_subscription_id = "00000000-0000-0000-0000-000000000000"
 
-# --- Optional (defaults shown) ---------------------------------------------
-
-# Azure region for the cluster RG, VNet, VMs, LBs, etc.
-# location = "francecentral"
-
-# Contact email for the Let's Encrypt ACME account.
-# letsencrypt_email = "you@example.com"
-
-# Topology. master_count must be 1 or 3; SNO (1) forbids workers.
-# master_count   = 3 # 1 = SNO, 3 = HA
-# worker_count   = 0 # 0 = compact (router on masters), >0 = router on workers
-# master_vm_size    = "Standard_D8s_v3"
-# worker_vm_size    = "Standard_D4s_v3"
-# bootstrap_vm_size = "Standard_D4s_v3" # ignored in SNO mode
-
-# Extra tags applied to every Azure resource (the cluster ownership tag is
-# added automatically on top of these).
-# tags = {
-#   SecurityControl = "Ignore"
-#   CostControl     = "Ignore"
-#   owner           = "you"
-# }
+ssh_public_key = "ssh-ed25519 AAAA... you@host"

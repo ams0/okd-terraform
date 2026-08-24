@@ -5,7 +5,9 @@
 locals {
   cert_manager_dir           = "${path.module}/../cert-manager"
   cert_manager_manifests_dir = "${path.module}/../cert-manager/rendered"
-  cluster_domain             = "okd.${var.base_domain}"
+  # Derived from install metadata rather than hardcoded, so it cannot drift
+  # from the DNS records in dns_public.tf if the cluster is ever renamed.
+  cluster_domain = "${local.cluster_name}.${var.base_domain}"
 }
 
 resource "local_file" "azure_dns_secret" {
@@ -93,5 +95,10 @@ resource "null_resource" "cert_manager_apply" {
     null_resource.cert_manager_bundle_link,
     azurerm_dns_a_record.api,
     azurerm_dns_a_record.apps,
+    # The VMs no longer sit behind a cloud LB whose creation implied the nodes
+    # existed, so depend on them directly. apply.sh still waits for the API
+    # itself, but without this the provisioner can start before a single node
+    # has been defined.
+    proxmox_virtual_environment_vm.master,
   ]
 }

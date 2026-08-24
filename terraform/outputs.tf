@@ -3,33 +3,33 @@ output "infra_id" {
   value       = local.infra_id
 }
 
-output "resource_group" {
-  value = azurerm_resource_group.main.name
+output "api_vip" {
+  description = "Virtual IP serving the cluster API, held by keepalived on a control-plane node"
+  value       = var.api_vip
 }
 
-output "ignition_storage_account" {
-  description = "Storage account hosting the bootstrap ignition blob"
-  value       = azurerm_storage_account.cluster.name
+output "ingress_vip" {
+  description = "Virtual IP serving *.apps, held by keepalived on a node running a router pod"
+  value       = var.ingress_vip
 }
 
-output "api_lb_public_ip" {
-  description = "Public IP of the external API LB"
-  value       = azurerm_public_ip.api.ip_address
-}
-
-output "router_lb_public_ip" {
-  description = "Public IP of the router LB"
-  value       = azurerm_public_ip.router.ip_address
+output "node_mac_addresses" {
+  description = "MACs Terraform pinned on each VM. Create DHCP reservations for these so control-plane addresses survive a rebuild."
+  value = merge(
+    local.single_node ? {} : { "${local.infra_id}-bootstrap" = local.bootstrap_mac },
+    { for i, m in local.master_macs : "${local.infra_id}-master-${i}" => m },
+    { for i, m in local.worker_macs : "${local.infra_id}-worker-${i}" => m },
+  )
 }
 
 output "api_url" {
   description = "Cluster API URL"
-  value       = "https://api.${local.cluster_name}.${var.base_domain}:6443"
+  value       = "https://api.${local.cluster_domain}:6443"
 }
 
 output "console_url" {
   description = "OpenShift web console URL"
-  value       = "https://console-openshift-console.apps.${local.cluster_name}.${var.base_domain}"
+  value       = "https://console-openshift-console.apps.${local.cluster_domain}"
 }
 
 output "kubeconfig_path" {
@@ -45,18 +45,18 @@ output "kubeadmin_password_path" {
 output "next_steps" {
   description = "What to do after terraform apply succeeds"
   value       = <<-EOT
-    DNS records, cert-manager, and the IngressController switch are all managed
-    by Terraform — no manual cluster config required.
+    DNS records and cert-manager are managed by Terraform. The API and ingress
+    VIPs are held by keepalived static pods on the cluster nodes, so nothing
+    outside the cluster needs configuring.
+
+    Before the first bringup, make sure DHCP reservations exist for the MACs in
+    the `node_mac_addresses` output — the HAProxy backend list is generated
+    from stable control-plane addresses.
 
     1. (First bringup) Watch bootstrap completion (~30-40 min):
          ./.bin/openshift-install --dir=install wait-for bootstrap-complete --log-level=info
-    2. Destroy the bootstrap VM (optional once cluster is healthy):
-         terraform destroy \
-           -target=azurerm_linux_virtual_machine.bootstrap \
-           -target=azurerm_network_interface_backend_address_pool_association.bootstrap_external \
-           -target=azurerm_network_interface_backend_address_pool_association.bootstrap_internal \
-           -target=azurerm_network_interface.bootstrap \
-           -target=azurerm_storage_blob.bootstrap_ignition
+    2. Destroy the bootstrap VM once the control plane is up:
+         terraform destroy -target=proxmox_virtual_environment_vm.bootstrap
     3. Watch install completion (~30 min more):
          ./.bin/openshift-install --dir=install wait-for install-complete --log-level=info
     4. Use the cluster:

@@ -1,8 +1,251 @@
-variable "location" {
-  description = "Azure region for the cluster"
+# ---------------------------------------------------------------------------
+# Proxmox connection
+# ---------------------------------------------------------------------------
+
+variable "proxmox_endpoint" {
+  description = "Proxmox VE API endpoint, e.g. https://pve.lan:8006/"
   type        = string
-  default     = "francecentral"
 }
+
+variable "proxmox_api_token" {
+  description = "Proxmox API token in `user@realm!tokenid=uuid` form. Needs VM.* plus Datastore.AllocateTemplate, Sys.Audit and Sys.Modify (the latter two for image download)."
+  type        = string
+  sensitive   = true
+}
+
+variable "proxmox_insecure" {
+  description = "Skip TLS verification against the Proxmox API (true for the default self-signed certificate)"
+  type        = bool
+  default     = true
+}
+
+variable "proxmox_ssh_username" {
+  description = "SSH user on the Proxmox node. Snippet upload (the ignition files) goes over SSH, not the REST API, so this must be able to write to the snippets datastore."
+  type        = string
+  default     = "root"
+}
+
+variable "proxmox_ssh_agent" {
+  description = "Use the local SSH agent for the Proxmox SSH connection"
+  type        = bool
+  default     = true
+}
+
+variable "proxmox_node" {
+  description = "Name of the Proxmox node to place VMs on"
+  type        = string
+}
+
+variable "proxmox_datastore" {
+  description = "Datastore for VM disks"
+  type        = string
+  default     = "local-lvm"
+}
+
+variable "proxmox_iso_datastore" {
+  description = "Datastore holding the downloaded SCOS image. Must allow the `import` content type, which is OFF by default — add it under Datacenter > Storage."
+  type        = string
+  default     = "local"
+}
+
+variable "proxmox_snippet_datastore" {
+  description = "Datastore holding the uploaded ignition snippets. Snippets are NOT enabled by default — turn them on under Datacenter > Storage first."
+  type        = string
+  default     = "local"
+}
+
+variable "proxmox_snippet_path" {
+  description = "Absolute path to the snippets directory on the Proxmox host, used to build the fw_cfg file= argument. Must correspond to proxmox_snippet_datastore: `local` is /var/lib/vz/snippets, other stores are usually /mnt/pve/<store>/snippets."
+  type        = string
+  default     = "/var/lib/vz/snippets"
+}
+
+variable "proxmox_bridge" {
+  description = "Linux bridge the VMs attach to"
+  type        = string
+  default     = "vmbr0"
+}
+
+variable "proxmox_vlan_id" {
+  description = "Optional VLAN tag for the VM NICs. null = untagged."
+  type        = number
+  default     = null
+}
+
+# ---------------------------------------------------------------------------
+# Cluster networking
+# ---------------------------------------------------------------------------
+
+variable "machine_network_cidr" {
+  description = "CIDR of the subnet the nodes sit on. Must match the network the Proxmox bridge is attached to, and is what openshift-install records as the machine network."
+  type        = string
+}
+
+variable "api_vip" {
+  description = "Free IP on machine_network_cidr for the API VIP (:6443). Held by keepalived on whichever control-plane node wins the VRRP election."
+  type        = string
+}
+
+variable "ingress_vip" {
+  description = "Free IP on machine_network_cidr for the ingress VIP (:80/:443). Must differ from api_vip."
+  type        = string
+}
+
+variable "vrrp_interface" {
+  description = "Interface name inside the guests that keepalived binds the VIPs to. SCOS on Proxmox with a virtio NIC normally gets `ens18`."
+  type        = string
+  default     = "ens18"
+}
+
+variable "vrrp_router_id_api" {
+  description = "VRRP virtual_router_id for the API VIP. Must be unique per VRRP domain (i.e. per L2 segment)."
+  type        = number
+  default     = 51
+}
+
+variable "vrrp_router_id_ingress" {
+  description = "VRRP virtual_router_id for the ingress VIP"
+  type        = number
+  default     = 52
+}
+
+check "vips_differ" {
+  assert {
+    condition     = var.api_vip != var.ingress_vip
+    error_message = "api_vip and ingress_vip must be different addresses."
+  }
+}
+
+check "vrrp_ids_differ" {
+  assert {
+    condition     = var.vrrp_router_id_api != var.vrrp_router_id_ingress
+    error_message = "vrrp_router_id_api and vrrp_router_id_ingress must differ, or keepalived will treat both VIPs as one group."
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Node image
+# ---------------------------------------------------------------------------
+
+variable "scos_image_url" {
+  description = "URL of the SCOS qcow2 to download onto the Proxmox node. Should match the openshift-install release in .bin/."
+  type        = string
+}
+
+variable "scos_image_checksum" {
+  description = "Checksum of scos_image_url (see scos_image_checksum_algorithm). Leave null to skip verification."
+  type        = string
+  default     = null
+}
+
+variable "scos_image_checksum_algorithm" {
+  description = "Algorithm for scos_image_checksum (md5, sha1, sha224, sha256, sha384, sha512)"
+  type        = string
+  default     = "sha256"
+}
+
+variable "scos_image_download_timeout" {
+  description = "Seconds allowed for the Proxmox node to download the SCOS image. The provider default is 600, which a multi-GB image on a slow link can exceed."
+  type        = number
+  default     = 3600
+}
+
+# ---------------------------------------------------------------------------
+# Topology
+# ---------------------------------------------------------------------------
+
+variable "master_count" {
+  description = "Number of control-plane VMs. 1 = Single Node OpenShift (bootstrap-in-place, no bootstrap VM). 3 = HA control plane (standard UPI bootstrap)."
+  type        = number
+  default     = 3
+  validation {
+    condition     = contains([1, 3], var.master_count)
+    error_message = "master_count must be 1 or 3."
+  }
+}
+
+variable "worker_count" {
+  description = "Number of worker VMs. 0 = compact / SNO mode (router pods run on masters via HostNetwork). >0 = router pods run on workers (requires master_count=3 because SNO does not produce a worker.ign)."
+  type        = number
+  default     = 0
+  validation {
+    condition     = var.worker_count >= 0
+    error_message = "worker_count must be >= 0."
+  }
+}
+
+# Cross-variable check: SNO can't have workers (single-node-ignition-config
+# doesn't produce a worker.ign).
+check "sno_no_workers" {
+  assert {
+    condition     = !(var.master_count == 1 && var.worker_count > 0)
+    error_message = "master_count=1 (Single Node OpenShift) requires worker_count=0. Use master_count=3 for clusters with workers."
+  }
+}
+
+variable "master_cpu_cores" {
+  description = "vCPU cores per control-plane VM"
+  type        = number
+  default     = 8
+}
+
+variable "master_memory_mb" {
+  description = "RAM per control-plane VM in MiB"
+  type        = number
+  default     = 32768
+}
+
+variable "master_disk_gb" {
+  description = "Root disk size per control-plane VM in GiB"
+  type        = number
+  default     = 120
+}
+
+variable "worker_cpu_cores" {
+  description = "vCPU cores per worker VM"
+  type        = number
+  default     = 4
+}
+
+variable "worker_memory_mb" {
+  description = "RAM per worker VM in MiB"
+  type        = number
+  default     = 16384
+}
+
+variable "worker_disk_gb" {
+  description = "Root disk size per worker VM in GiB"
+  type        = number
+  default     = 120
+}
+
+variable "bootstrap_cpu_cores" {
+  description = "vCPU cores for the temporary bootstrap VM (3-CP mode only; ignored for SNO)"
+  type        = number
+  default     = 4
+}
+
+variable "bootstrap_memory_mb" {
+  description = "RAM for the temporary bootstrap VM in MiB"
+  type        = number
+  default     = 16384
+}
+
+variable "bootstrap_disk_gb" {
+  description = "Root disk size for the temporary bootstrap VM in GiB"
+  type        = number
+  default     = 120
+}
+
+variable "mac_address_prefix" {
+  description = "First three octets of the generated MAC addresses. Terraform pins MACs so you can create matching DHCP reservations; the last three octets are derived per role and index."
+  type        = string
+  default     = "02:00:00"
+}
+
+# ---------------------------------------------------------------------------
+# DNS (still Azure) and cert-manager
+# ---------------------------------------------------------------------------
 
 variable "base_domain" {
   description = "Public DNS zone name (parent of the cluster's FQDNs)"
@@ -43,69 +286,15 @@ variable "cert_manager_azure_subscription_id" {
   type        = string
 }
 
-variable "master_count" {
-  description = "Number of control-plane VMs. 1 = Single Node OpenShift (bootstrap-in-place, no bootstrap VM). 3 = HA control plane (standard UPI bootstrap)."
-  type        = number
-  default     = 3
-  validation {
-    condition     = contains([1, 3], var.master_count)
-    error_message = "master_count must be 1 or 3."
-  }
-}
-
-variable "worker_count" {
-  description = "Number of worker VMs. 0 = compact / SNO mode (router pods run on masters via HostNetwork). >0 = router pods run on workers (requires master_count=3 because SNO does not produce a worker.ign)."
-  type        = number
-  default     = 0
-  validation {
-    condition     = var.worker_count >= 0
-    error_message = "worker_count must be >= 0."
-  }
-}
-
-# Cross-variable check: SNO can't have workers (single-node-ignition-config
-# doesn't produce a worker.ign).
-check "sno_no_workers" {
-  assert {
-    condition     = !(var.master_count == 1 && var.worker_count > 0)
-    error_message = "master_count=1 (Single Node OpenShift) requires worker_count=0. Use master_count=3 for clusters with workers."
-  }
-}
-
-variable "master_vm_size" {
-  description = "Azure VM size for control-plane VMs"
-  type        = string
-  default     = "Standard_D8s_v3"
-}
-
-variable "worker_vm_size" {
-  description = "Azure VM size for worker VMs (when worker_count > 0)"
-  type        = string
-  default     = "Standard_D4s_v3"
-}
-
-variable "bootstrap_vm_size" {
-  description = "Azure VM size for the temporary bootstrap node (3-CP mode only; ignored for SNO)"
-  type        = string
-  default     = "Standard_D4s_v3"
-}
-
-variable "scos_vhd_blob_uri" {
-  description = "Full HTTPS URI of the pre-uploaded SCOS Azure VHD page blob"
-  type        = string
-}
-
 variable "ssh_public_key" {
-  description = "SSH public key embedded in the cluster (already in master.ign, repeated here for the Azure VM admin_ssh_key block)"
+  description = "SSH public key embedded in the cluster via install-config (repeated here for reference in outputs)"
   type        = string
 }
 
 variable "tags" {
-  description = "Extra tags applied to every resource (the cluster ownership tag is added automatically)"
+  description = "Free-form tags applied to Proxmox VMs (Proxmox tags are flat strings, so these are rendered as `key-value`)"
   type        = map(string)
   default = {
-    SecurityControl = "Ignore"
-    CostControl     = "Ignore"
-    owner           = "alessandro"
+    owner = "alessandro"
   }
 }
