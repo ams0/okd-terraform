@@ -166,7 +166,7 @@ variable "scos_image_url" {
 }
 
 variable "scos_image_checksum" {
-  description = "Checksum of scos_image_url (see scos_image_checksum_algorithm). Leave null to skip verification."
+  description = "Checksum of the image AFTER decompression, i.e. the artifact's `uncompressed-sha256`, not its `sha256`. PVE expands the download and then checksums the resulting file, so the compressed hash always fails with 'checksum mismatch'. Leave null to skip verification."
   type        = string
   default     = null
 }

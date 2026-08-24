@@ -20,6 +20,10 @@
 #     .bin/openshift-install coreos print-stream-json \
 #       | jq -r '.architectures.x86_64.artifacts.qemu.formats["qcow2.gz"].disk'
 #
+# Take `uncompressed-sha256` from that, NOT `sha256`. PVE expands the download
+# before verifying, so handing it the compressed hash aborts the task with
+# "checksum mismatch" after the whole file has already been transferred.
+#
 # The API token needs Datastore.AllocateTemplate plus Sys.Audit and Sys.Modify.
 resource "proxmox_download_file" "scos" {
   node_name    = local.upload_node

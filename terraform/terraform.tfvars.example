@@ -63,7 +63,7 @@ vrrp_interface_node      = "br-ex"
 # ---------------------------------------------------------------------------
 # For 4.22.0-okd-scos.8 / SCOS build 10.0.20251103-0:
 scos_image_url      = "https://rhcos.mirror.openshift.com/art/storage/prod/streams/c10s/builds/10.0.20251103-0/x86_64/scos-10.0.20251103-0-qemu.x86_64.qcow2.gz"
-scos_image_checksum = "5b8f269822647f1471c4ae6aab445a1a4e3bce1522fcb566a507f4881c437a0a"
+scos_image_checksum = "70609c79412a7853f0634f34afdd0e0a2492d4e188d45b78d4c9ead41ff571c8"
 
 # ---------------------------------------------------------------------------
 # Topology
