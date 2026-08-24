@@ -160,4 +160,42 @@ the dynamic pool — with no image surgery.
 
 ## Review
 
-_(fill in as phases land)_
+**Validated on hardware.** A clean `scripts/04-bringup.sh -auto-approve` from an
+empty state produced a working cluster with no manual intervention:
+
+- 3 masters Ready (`control-plane,master,worker`), spread pve1/pve2/pve3
+- MCO `degraded=False updated=3/3` — bootstrap-rendered and in-cluster
+  MachineConfigs agree, which is only true when the VIP layer is baked in from
+  the start rather than patched onto a running cluster
+- API VIP on master-0's `br-ex`, ingress VIP on master-1's — separate VRRP
+  groups, handed over from bootstrap automatically at 150 vs 90
+- Bootstrap destroyed; API stayed up (`/healthz 200`) on the master-held VIP
+- `*.apps` wildcard from Let's Encrypt (`CN=YR2`), `ssl_verify=0` against the
+  public trust store, console `http=200`
+
+### What only real hardware found
+
+Seven of the ten fixes were invisible to review:
+
+1. No API token can set QEMU `args` — PVE compares against the literal
+   `root@pam`, and token auth makes the user `root@pam!name`
+2. `cluster/nextid` races under concurrent VM creation
+3. `overwrite` compares URL size against on-disk size, so a decompressed image
+   is replaced (re-downloaded) on every apply
+4. `vmbr0` was the management network; the machine network is an SDN VNet
+   (`vmnet34`) that does not appear in the per-node bridge list
+5. The keepalived image's entrypoint generates its own config over ours and
+   then reports "no configuration to run" while looking healthy
+6. OVN-Kubernetes moves the node IP to `br-ex`, so a VIP on `ens18` is dead
+   while keepalived still logs MASTER STATE
+7. PVE checksums the image *after* decompression, so the artifact's
+   `uncompressed-sha256` is the one to supply
+
+### Known rough edges
+
+- The bootstrap VM must be destroyed with a targeted `terraform destroy`, and a
+  later `terraform apply` will want to recreate it. Same wart as the Azure
+  branch; worth a `create_bootstrap` variable if it becomes annoying.
+- Ignition reads fw_cfg in quadratic time (~75s for the 310 KB bootstrap.ign).
+- Running the bringup across a lossy tunnel is fragile: the image download and
+  the SSH ignition attach both suffered resets. `-parallelism=2` helps.
