@@ -49,6 +49,8 @@ resource "null_resource" "bootstrap_boot" {
   triggers = {
     vmid = local.bootstrap_vmid
     args = local.fw_cfg.bootstrap
+    # so replacing the VM re-attaches ignition instead of leaving it stopped
+    vm   = proxmox_virtual_environment_vm.bootstrap[0].id
     host = var.proxmox_node_hosts[local.bootstrap_node]
   }
 
@@ -65,6 +67,8 @@ resource "null_resource" "master_boot" {
   triggers = {
     vmid = local.master_vmids[count.index]
     args = local.fw_cfg.master
+    # so replacing the VM re-attaches ignition instead of leaving it stopped
+    vm   = proxmox_virtual_environment_vm.master[count.index].id
     host = var.proxmox_node_hosts[local.master_nodes[count.index]]
   }
 
@@ -87,6 +91,8 @@ resource "null_resource" "worker_boot" {
   triggers = {
     vmid = local.worker_vmids[count.index]
     args = local.fw_cfg.worker
+    # so replacing the VM re-attaches ignition instead of leaving it stopped
+    vm   = proxmox_virtual_environment_vm.worker[count.index].id
     host = var.proxmox_node_hosts[local.worker_nodes[count.index]]
   }
 

@@ -88,7 +88,7 @@ variable "proxmox_snippet_path" {
 }
 
 variable "proxmox_bridge" {
-  description = "Linux bridge the VMs attach to"
+  description = "Bridge or SDN VNet the VMs attach to. An SDN VNet (e.g. vmnet34) will not appear in `pvesh get /nodes/<node>/network` -- check `pvesh get /cluster/sdn/vnets`. If the VNet already carries a VLAN tag, leave proxmox_vlan_id unset."
   type        = string
   default     = "vmbr0"
 }
