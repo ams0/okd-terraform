@@ -9,9 +9,12 @@
 #     never answer.
 #   - `stop_on_destroy`: without it the provider issues a graceful shutdown and
 #     waits; a half-bootstrapped node frequently ignores it, so destroy hangs.
-#   - `kvm_arguments` carries the fw_cfg pointer to the node's ignition. It is
-#     NOT in ignore_changes: a changed ignition must recreate the VM, because
-#     ignition is only ever consumed on first boot.
+#   - Ignition is NOT attached here. The QEMU `args` option carrying the fw_cfg
+#     pointer cannot be set through the Proxmox API by ANY api token: PVE
+#     compares the authenticated user against the literal string "root@pam",
+#     and for token auth that user is the full token-ID "root@pam!name", which
+#     never matches. vm_boot.tf attaches it over SSH and starts the VM, so
+#     these are deliberately created stopped.
 
 locals {
   # A freshly imported disk is the image's own size; `size` grows it. The
@@ -63,7 +66,11 @@ resource "proxmox_virtual_environment_vm" "bootstrap" {
     type = "l26"
   }
 
-  kvm_arguments = local.fw_cfg.bootstrap
+  vm_id = local.bootstrap_vmid
+
+  # Started by vm_boot.tf once its ignition args are attached; booting
+  # without them would leave the guest with no configuration at all.
+  started = false
 
   stop_on_destroy = true
 
@@ -113,7 +120,11 @@ resource "proxmox_virtual_environment_vm" "master" {
     type = "l26"
   }
 
-  kvm_arguments = local.fw_cfg.master
+  vm_id = local.master_vmids[count.index]
+
+  # Started by vm_boot.tf once its ignition args are attached; booting
+  # without them would leave the guest with no configuration at all.
+  started = false
 
   stop_on_destroy = true
 
@@ -163,7 +174,11 @@ resource "proxmox_virtual_environment_vm" "worker" {
     type = "l26"
   }
 
-  kvm_arguments = local.fw_cfg.worker
+  vm_id = local.worker_vmids[count.index]
+
+  # Started by vm_boot.tf once its ignition args are attached; booting
+  # without them would leave the guest with no configuration at all.
+  started = false
 
   stop_on_destroy = true
 

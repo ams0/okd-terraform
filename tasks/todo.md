@@ -121,6 +121,23 @@ us nowhere to inject those without rebuilding the image's bootloader.
 Static DHCP mappings give the same outcome — fixed, known addresses outside
 the dynamic pool — with no image surgery.
 
+## Failures hit on the first real bringup
+
+- **`args` is unreachable via any API token.** PVE guards the QEMU `args`
+  option with `$authuser eq 'root@pam'`, and for token auth that user is the
+  full token-ID (`root@pam!name`), so even a root token fails with
+  "only root can set 'args' config". Ignition is now attached with
+  `qm set --args` over SSH from `vm_boot.tf`, and VMs are created stopped.
+- **`cluster/nextid` races.** Three concurrent VM creations produced repeated
+  "context deadline exceeded". VMIDs are now assigned deterministically from
+  `vm_id_base`.
+- **A decompressed image is replaced on every apply.** The provider compares
+  the URL-reported size (compressed) against the file on disk (expanded), which
+  never match. `overwrite = false` disables the size check.
+- **A stale ssh-agent breaks key auth outright.** ssh delegates to the agent
+  for the key and fails rather than falling back to the file, so every SSH call
+  passes `IdentityAgent=none`.
+
 ## Open risks
 
 - The VIP layer is hand-rolled and has never run on hardware. Specific things

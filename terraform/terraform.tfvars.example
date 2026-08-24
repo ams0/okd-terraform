@@ -9,6 +9,15 @@ proxmox_api_token = "terraform@pve!provider=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 # the whole control plane. A single-element list pins everything to one node.
 proxmox_nodes = ["pve1", "pve2", "pve3"]
 
+# An address Terraform can SSH into for each node. Attaching ignition uses
+# `qm set --args` on the node itself, because the QEMU args option is root-only
+# and no API token can ever satisfy that check.
+proxmox_node_hosts = {
+  pve1 = "10.0.0.11"
+  pve2 = "10.0.0.12"
+  pve3 = "10.0.0.13"
+}
+
 # Snippet upload (the ignition files) goes over SSH, not the REST API.
 proxmox_ssh_username = "root"
 

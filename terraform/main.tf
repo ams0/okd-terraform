@@ -59,6 +59,13 @@ locals {
   # Bootstrap is temporary and its placement does not affect resilience.
   bootstrap_node = var.proxmox_nodes[0]
 
+  # Deterministic VMIDs. cluster/nextid is a cluster-wide race: three VMs
+  # asking for "the next id" concurrently produced repeated
+  # "context deadline exceeded" failures against a busy cluster.
+  bootstrap_vmid = var.vm_id_base
+  master_vmids   = [for i in range(local.master_count) : var.vm_id_base + 1 + i]
+  worker_vmids   = [for i in range(local.worker_count) : var.vm_id_base + 10 + i]
+
   # MACs are pinned rather than left to Proxmox so the operator can create
   # matching DHCP reservations once and have them survive destroy/recreate.
   # Layout: <prefix>:<role>:00:<index>, role 00=bootstrap 01=master 02=worker.

@@ -53,6 +53,17 @@ variable "proxmox_nodes" {
   }
 }
 
+variable "proxmox_node_hosts" {
+  description = "Map of Proxmox node name to an address Terraform can SSH into, e.g. {pve1 = \"172.29.1.11\"}. Needed because the QEMU `args` option cannot be set through the API by any token (see vm_boot.tf), so it is applied with `qm set` on the node itself."
+  type        = map(string)
+}
+
+variable "vm_id_base" {
+  description = "First VMID to allocate. IDs are assigned deterministically (base+0 bootstrap, base+1.. masters, base+10.. workers) rather than via cluster/nextid, which races and times out when several VMs are created at once."
+  type        = number
+  default     = 9000
+}
+
 variable "proxmox_datastore" {
   description = "Datastore for VM disks. Prefer a shared store (Ceph RBD) so masters can live-migrate between hypervisors; a node-local store also works but pins each VM to its node. There is no universal default -- `local-lvm` does not exist on every cluster -- so set this explicitly."
   type        = string

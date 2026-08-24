@@ -42,4 +42,10 @@ resource "proxmox_download_file" "scos" {
   # A leftover file from a previous cluster with the same name would otherwise
   # hard-error instead of being replaced.
   overwrite_unmanaged = true
+
+  # Size checking has to be off for a decompressed image. The provider compares
+  # the size the URL reports against the file in the datastore, but the URL
+  # serves a ~1GB .gz while what lands on disk is the ~1.8GB expanded qcow2, so
+  # they never agree and every apply would re-download and replace it.
+  overwrite = false
 }
