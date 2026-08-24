@@ -43,7 +43,7 @@ variable "proxmox_datastore" {
 }
 
 variable "proxmox_iso_datastore" {
-  description = "Datastore holding the downloaded SCOS image. Must allow the `import` content type, which is OFF by default — add it under Datacenter > Storage."
+  description = "Datastore holding the downloaded SCOS image. Uses the `iso` content type, which is enabled by default."
   type        = string
   default     = "local"
 }
@@ -142,6 +142,12 @@ variable "scos_image_checksum_algorithm" {
   description = "Algorithm for scos_image_checksum (md5, sha1, sha224, sha256, sha384, sha512)"
   type        = string
   default     = "sha256"
+}
+
+variable "scos_image_decompression" {
+  description = "Decompression applied to scos_image_url on the node. SCOS ships the qemu artifact as .qcow2.gz, so this is `gz`. Set to null for an already-uncompressed image."
+  type        = string
+  default     = "gz"
 }
 
 variable "scos_image_download_timeout" {

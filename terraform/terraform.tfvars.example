@@ -8,10 +8,10 @@ proxmox_node      = "pve"
 # Snippet upload (the ignition files) goes over SSH, not the REST API.
 proxmox_ssh_username = "root"
 
-# Datastores. Before the first apply, under Datacenter > Storage enable:
-#   - `Snippets` on proxmox_snippet_datastore  (ignition delivery)
-#   - `Import`   on proxmox_iso_datastore      (SCOS qcow2)
-# Neither is on by default.
+# Datastores. Before the first apply, enable `Snippets` on
+# proxmox_snippet_datastore under Datacenter > Storage — it is off by default
+# and ignition delivery needs it. The image uses the `iso` content type, which
+# is already enabled.
 proxmox_datastore         = "local-lvm"
 proxmox_iso_datastore     = "local"
 proxmox_snippet_datastore = "local"
@@ -41,8 +41,9 @@ vrrp_interface = "ens18"
 # Use the SCOS build matching the openshift-install release in .bin/
 # (`.bin/openshift-install version`).
 # ---------------------------------------------------------------------------
-scos_image_url      = "https://.../scos-9.0.qcow2"
-scos_image_checksum = null
+# For 4.22.0-okd-scos.8 / SCOS build 10.0.20251103-0:
+scos_image_url      = "https://rhcos.mirror.openshift.com/art/storage/prod/streams/c10s/builds/10.0.20251103-0/x86_64/scos-10.0.20251103-0-qemu.x86_64.qcow2.gz"
+scos_image_checksum = "5b8f269822647f1471c4ae6aab445a1a4e3bce1522fcb566a507f4881c437a0a"
 
 # ---------------------------------------------------------------------------
 # Topology

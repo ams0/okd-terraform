@@ -32,6 +32,7 @@ valid Let's Encrypt chain.
 - [ ] Proxmox API token **and** SSH access (snippet upload uses SSH, not the API)
 - [ ] Snippets enabled on the target datastore (Datacenter → Storage; off by default)
 - [ ] `Datastore.AllocateTemplate`, `Sys.Audit`, `Sys.Modify` for image download
+- [x] ~~`Import` content type~~ — not needed; SCOS ships gzipped so the image uses `iso` + `decompression_algorithm`
 - [ ] Two free IPs on the node subnet for the API and ingress VIPs
 - [ ] OPNsense static DHCP mappings for the MACs Terraform assigns — one per
       master **plus one for bootstrap**, at fixed addresses outside the dynamic pool

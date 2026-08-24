@@ -48,7 +48,7 @@ resource "proxmox_virtual_environment_vm" "bootstrap" {
 
   disk {
     datastore_id = var.proxmox_datastore
-    import_from  = proxmox_download_file.scos.id
+    file_id      = proxmox_download_file.scos.id
     interface    = local.disk_interface
     size         = var.bootstrap_disk_gb
   }
@@ -98,7 +98,7 @@ resource "proxmox_virtual_environment_vm" "master" {
 
   disk {
     datastore_id = var.proxmox_datastore
-    import_from  = proxmox_download_file.scos.id
+    file_id      = proxmox_download_file.scos.id
     interface    = local.disk_interface
     size         = var.master_disk_gb
   }
@@ -148,7 +148,7 @@ resource "proxmox_virtual_environment_vm" "worker" {
 
   disk {
     datastore_id = var.proxmox_datastore
-    import_from  = proxmox_download_file.scos.id
+    file_id      = proxmox_download_file.scos.id
     interface    = local.disk_interface
     size         = var.worker_disk_gb
   }
