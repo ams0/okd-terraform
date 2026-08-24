@@ -19,9 +19,10 @@ proxmox_ssh_username = "root"
 # With more than one node in proxmox_nodes, the image and snippet stores MUST
 # be shared: both are uploaded once via the first node, and whichever node runs
 # the VM has to read them. CephFS works; Ceph RBD cannot hold snippets at all.
-# For any mounted store the snippets path is /mnt/pve/<storage-id>/snippets --
-# only the built-in `local` store lives under /var/lib/vz.
-proxmox_datastore         = "local-lvm"
+# For any mounted store the snippets path is <storage path>/snippets, i.e.
+# /mnt/pve/<storage-id>/snippets -- only the built-in `local` store lives under
+# /var/lib/vz. Check with: pvesh get /storage/<id> --output-format json
+proxmox_datastore         = "ceph-vm"
 proxmox_iso_datastore     = "cephfs"
 proxmox_snippet_datastore = "cephfs"
 proxmox_snippet_path      = "/mnt/pve/cephfs/snippets"

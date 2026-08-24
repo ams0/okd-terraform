@@ -41,9 +41,8 @@ variable "proxmox_nodes" {
 }
 
 variable "proxmox_datastore" {
-  description = "Datastore for VM disks. May be node-local (each node has its own local-lvm) or shared (Ceph RBD). Shared is required if you ever want to live-migrate a node."
+  description = "Datastore for VM disks. Prefer a shared store (Ceph RBD) so masters can live-migrate between hypervisors; a node-local store also works but pins each VM to its node. There is no universal default -- `local-lvm` does not exist on every cluster -- so set this explicitly."
   type        = string
-  default     = "local-lvm"
 }
 
 variable "proxmox_iso_datastore" {

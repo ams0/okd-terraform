@@ -29,13 +29,14 @@ valid Let's Encrypt chain.
 
 ## Prerequisites for the operator (document in README)
 
-- [ ] Proxmox API token **and** SSH access (snippet upload uses SSH, not the API)
-- [ ] Snippets enabled on the target datastore (Datacenter → Storage; off by default)
+- [x] Proxmox API token created (terraform@pve!provider)
+- [ ] SSH key in ssh-agent for the PVE nodes (snippet upload uses SSH, not the API)
+- [x] Snippets enabled on the target datastore — already on for `cephfs` (content: snippets,backup,import,iso,vztmpl; shared:1; path /mnt/pve/cephfs)
 - [ ] `Datastore.AllocateTemplate`, `Sys.Audit`, `Sys.Modify` for image download
 - [x] ~~`Import` content type~~ — not needed; SCOS ships gzipped so the image uses `iso` + `decompression_algorithm`
-- [ ] Two free IPs on the node subnet for the API and ingress VIPs
-- [ ] OPNsense static DHCP mappings for the MACs Terraform assigns — one per
-      master **plus one for bootstrap**, at fixed addresses outside the dynamic pool
+- [x] VIPs chosen: 192.168.228.50 (api) / .51 (ingress), outside the .100-.200 pool
+- [x] OPNsense (Dnsmasq) static mappings created for .52-.55 — bootstrap plus
+      three masters. Kea is disabled on that box; Dnsmasq serves DHCP
 - [ ] Proxmox service account + API token (`--privsep=0`) and an SSH key for
       snippet upload
 - [ ] Azure SP with DNS Zone Contributor (unchanged, for cert-manager)
