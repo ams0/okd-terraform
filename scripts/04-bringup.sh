@@ -7,6 +7,10 @@
 # files, masters will fail to pull their config and the cluster won't come up.
 #
 # Behavior:
+# On platform: none the installer emits a DNS config with neither publicZone
+# nor privateZone, so the cluster-ingress-operator cannot claim the *.apps
+# records and the zone-stripping step this script used to perform is unnecessary.
+#
 #   - If terraform state is empty (fresh checkout or post-destroy), wipe the
 #     install/ artifacts and regenerate them via `openshift-install create
 #     manifests + ignition-configs`. This produces a fresh infraID + MCS token.
@@ -100,29 +104,20 @@ PY
     echo "==> openshift-install create manifests"
     "$INSTALLER" create manifests --dir="$INSTALL"
 
-    # Strip publicZone/privateZone from the cluster DNS config BEFORE ignitions
-    # are baked. Otherwise the cluster-ingress-operator takes ownership of
-    # *.apps.<base_domain> A records in those zones and deletes them whenever
-    # the IngressController is recreated (which our HostNetwork switch does),
-    # wiping the records Terraform created.
-    DNS_CFG="$INSTALL/manifests/cluster-dns-02-config.yml"
-    if [[ -f "$DNS_CFG" ]]; then
-      echo "==> Stripping publicZone/privateZone from $DNS_CFG"
-      python3 - "$DNS_CFG" <<'PY'
-import sys, yaml
-path = sys.argv[1]
-with open(path) as f: doc = yaml.safe_load(f)
-spec = doc.get("spec") or {}
-spec.pop("publicZone", None)
-spec.pop("privateZone", None)
-doc["spec"] = spec
-with open(path, "w") as f: yaml.safe_dump(doc, f, sort_keys=False)
-print(f"  cleared zones in {path}")
-PY
-    fi
+    # Install the keepalived VIP layer into the master config before ignitions
+    # are baked. platform: none renders no on-prem LB, so without this nothing
+    # ever answers on api_vip and the cluster is unreachable.
+    echo "==> Rendering keepalived MachineConfig for masters"
+    "$ROOT/scripts/03-render-lb-manifests.sh" manifests
 
     echo "==> openshift-install create ignition-configs"
     "$INSTALLER" create ignition-configs --dir="$INSTALL"
+
+    # bootstrap.ign is a complete config (not a pointer), so it is patched
+    # after generation rather than via a MachineConfig. Bootstrap holds the API
+    # VIP until a master's own apiserver outranks it.
+    echo "==> Patching bootstrap.ign with keepalived"
+    "$ROOT/scripts/03-render-lb-manifests.sh" bootstrap
   fi
 
   echo "==> Fresh infraID: $(python3 -c "import json; print(json.load(open('$INSTALL/metadata.json'))['infraID'])")"

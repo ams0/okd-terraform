@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Render install/install-config.yaml from .tpl by substituting values from
-# terraform.tfvars (cluster name, base domain, replicas, VM sizes, etc.) plus
+# terraform.tfvars (cluster name, base domain, replicas, machine network) plus
 # the pull secret on disk. Reads sensitive values from disk; nothing is echoed.
 #
 # For Single Node OpenShift (master_count == 1) a `bootstrapInPlace` block is
@@ -12,7 +12,6 @@ TPL="$ROOT/install/install-config.yaml.tpl"
 OUT="$ROOT/install/install-config.yaml"
 PULL_SECRET_FILE="${PULL_SECRET_FILE:-${HOME}/Downloads/pull-secret.txt}"
 TFVARS="$ROOT/terraform/terraform.tfvars"
-DNS_RG="${DNS_RG:-resources}"
 
 # Fail with something readable instead of a Python traceback from inside the
 # heredoc — a missing pull secret is the single most common first-run blocker.
@@ -24,10 +23,10 @@ DNS_RG="${DNS_RG:-resources}"
 }
 [[ -f "$TFVARS" ]] || { echo "FATAL: $TFVARS missing (copy terraform.tfvars.example)" >&2; exit 1; }
 
-python3 - "$TPL" "$OUT" "$PULL_SECRET_FILE" "$TFVARS" "$DNS_RG" <<'PY'
+python3 - "$TPL" "$OUT" "$PULL_SECRET_FILE" "$TFVARS" <<'PY'
 import re, sys
 
-tpl_path, out_path, ps_path, tfvars_path, dns_rg = sys.argv[1:]
+tpl_path, out_path, ps_path, tfvars_path = sys.argv[1:]
 
 with open(ps_path) as f:
     pull_secret = f.read().strip()
@@ -47,13 +46,14 @@ def get_var(name, default=None):
         sys.exit(f"{name} not found in {tfvars_path}")
     return default
 
-ssh_key        = get_var("ssh_public_key")
-master_count   = get_var("master_count", "3")
-worker_count   = get_var("worker_count", "0")
-master_vm_size = get_var("master_vm_size", "Standard_D8s_v3")
-worker_vm_size = get_var("worker_vm_size", "Standard_D4s_v3")
-base_domain    = get_var("base_domain", "techmasters.cloud")
-region         = get_var("location", "francecentral")
+ssh_key       = get_var("ssh_public_key")
+master_count  = get_var("master_count", "3")
+worker_count  = get_var("worker_count", "0")
+base_domain   = get_var("base_domain", "techmasters.cloud")
+
+# The machine network has to match the subnet the Proxmox bridge is on, or the
+# installer records the wrong node CIDR and kubelet picks the wrong address.
+machine_network_cidr = get_var("machine_network_cidr")
 
 # Fixed, derived from install-config metadata.name (kept in template as cluster name)
 cluster_name   = "okd"
@@ -61,13 +61,14 @@ cluster_name   = "okd"
 if master_count not in ("1", "3"):
     sys.exit(f"master_count must be 1 or 3, got {master_count}")
 
-# bootstrap-in-place applies only to SNO (master_count == 1). The disk path for
-# Azure SCOS VMs from a managed image is /dev/sda — that's where the live
-# bootstrap-in-place ignition will install the running OS.
+# bootstrap-in-place applies only to SNO (master_count == 1). On Proxmox the
+# root disk is attached as virtio0, which the guest sees as /dev/vda — not
+# /dev/sda as on Azure. Getting this wrong makes the single-node install target
+# a device that does not exist.
 if master_count == "1":
     bip_block = (
         "bootstrapInPlace:\n"
-        "  installationDisk: /dev/sda\n"
+        "  installationDisk: /dev/vda\n"
     )
 else:
     bip_block = ""
@@ -78,12 +79,9 @@ with open(tpl_path) as f:
 out = (
     out.replace("__BASE_DOMAIN__", base_domain)
        .replace("__CLUSTER_NAME__", cluster_name)
-       .replace("__REGION__", region)
-       .replace("__DNS_RG__", dns_rg)
+       .replace("__MACHINE_NETWORK_CIDR__", machine_network_cidr)
        .replace("__MASTER_COUNT__", master_count)
        .replace("__WORKER_COUNT__", worker_count)
-       .replace("__MASTER_VM_SIZE__", master_vm_size)
-       .replace("__WORKER_VM_SIZE__", worker_vm_size)
        .replace("__BOOTSTRAP_IN_PLACE__", bip_block)
        .replace("__PULL_SECRET__", pull_secret)
        .replace("__SSH_KEY__", ssh_key)
@@ -92,5 +90,8 @@ out = (
 with open(out_path, "w") as f:
     f.write(out)
 
-print(f"wrote {out_path} ({len(out)} bytes) — masters={master_count}, workers={worker_count}, sno={'yes' if master_count=='1' else 'no'}")
+print(f"wrote {out_path} ({len(out)} bytes) — platform=none, "
+      f"masters={master_count}, workers={worker_count}, "
+      f"machineNetwork={machine_network_cidr}, "
+      f"sno={'yes' if master_count=='1' else 'no'}")
 PY

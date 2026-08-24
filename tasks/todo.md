@@ -75,11 +75,18 @@ valid Let's Encrypt chain.
 (`platform: azure`); VMs built from them would boot and fail to bootstrap.
 Phase 6 has to land first.
 
-## Phase 4 — On-node load balancing
+## Phase 4 — On-node load balancing  (done, untested on hardware)
 
-- [ ] Butane/MachineConfig: keepalived (VRRP, both VIPs) + HAProxy static pods
-- [ ] Drop into `install/openshift/` as `99-*` manifests before ignitions bake
-- [ ] Health checks so the ingress VIP only lands on nodes running a router
+- [x] keepalived via MachineConfig `99-master-okd-keepalived` into `install/openshift/`
+- [x] bootstrap.ign patched directly (it is a complete config, not a pointer)
+- [x] Health checks: ingress VIP only lands on a node whose router answers :1936
+- [x] **No HAProxy, no nftables.** OpenShift's on-prem stack DNATs VIP:6443 to a
+      separate haproxy port (`ocp_nat` table, `apiPort` != `lbPort`) purely to
+      load balance the API across masters, with baremetal-runtimecfg
+      regenerating both configs from live cluster state. kube-apiserver already
+      binds 0.0.0.0:6443, so a VIP landing on a master is served directly.
+      Trade-off accepted: one master serves all external API traffic at a time;
+      VRRP failover still works.
 
 ## Phase 5 — DNS and cert-manager
 
@@ -91,9 +98,10 @@ Phase 6 has to land first.
 
 ## Phase 6 — Scripts and docs
 
-- [ ] `02-render-install-config.sh`: emit `platform: none` + machineNetwork;
-      drop Azure fields
-- [ ] `04-bringup.sh`: drop the DNS-stripping step; keep state/regen logic
+- [x] `02-render-install-config.sh`: emits `platform: none` + machineNetwork;
+      Azure fields gone; SNO installationDisk fixed to /dev/vda (virtio, not sda)
+- [x] `04-bringup.sh`: DNS-stripping step removed; renders the LB layer before
+      ignitions bake and patches bootstrap.ign after
 - [x] Delete `lb.tf`, `storage.tf`, `network.tf`, `dns_private.tf`
 - [ ] Rewrite `CLAUDE.md` + `README.md` for Proxmox
 
@@ -115,14 +123,18 @@ the dynamic pool — with no image surgery.
 
 ## Open risks
 
-- keepalived/HAProxy static pods are the piece OKD normally generates via
-  `runtimecfg`. Ours are hand-rolled, so VIP failover and the bootstrap
-  ordering (VIP must exist before the API does) need real testing.
-- The API backend list must include the **bootstrap** node while it is serving
-  the API, then stop including it. Static pods only run on cluster nodes, so
-  the API VIP has to work before any master is up — decide whether keepalived
-  also runs on bootstrap, or whether HAProxy simply lists bootstrap as a
-  backend that fails its health check once gone.
+- The VIP layer is hand-rolled and has never run on hardware. Specific things
+  to watch on first bringup:
+  - keepalived's `enable_script_security` may reject `/bin/sh -c 'test -f ...'`;
+    if the VIPs never come up, check `podman logs okd-keepalived` first.
+  - `vrrp_interface` defaults to ens18. Confirm with `ip link` on a booted node;
+    a wrong name means keepalived starts but never claims the VIP.
+  - Bootstrap->master handover depends only on priority (40+50 vs 50+100), so
+    a master whose /readyz answers takes the VIP automatically. Verify the
+    window where bootstrap's temporary control plane stops but the VM still
+    exists does not strand the VIP.
+  - VRRP needs multicast on the bridge. If OPNsense or the switch filters it,
+    both nodes will think they own the VIP.
 - SCOS qcow2 must boot under the chosen machine type / firmware; may need
   `q35` + UEFI vs `pc` + SeaBIOS. Verify on first VM.
 - `openshift-install` still needs `install-config.yaml` to satisfy
