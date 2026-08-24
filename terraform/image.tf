@@ -31,9 +31,10 @@ resource "proxmox_download_file" "scos" {
   checksum_algorithm      = var.scos_image_checksum == null ? null : var.scos_image_checksum_algorithm
   decompression_algorithm = var.scos_image_decompression
 
-  # Stable name so re-applies reuse the existing download instead of re-pulling
-  # several GB. Scoped by infra_id so two clusters never collide.
-  file_name = "scos-${local.infra_id}.qcow2.img"
+  # Named after the image itself, not the cluster. The artifact is a property
+  # of the OKD release, so scoping it by infra_id meant every rebuild pulled
+  # another 1.8 GB for a byte-identical file.
+  file_name = "${replace(basename(var.scos_image_url), ".qcow2.gz", "")}.qcow2.img"
 
   # The default is 10 minutes, which a multi-GB image will not always beat on a
   # home connection — and this one is decompressed on the node as well.

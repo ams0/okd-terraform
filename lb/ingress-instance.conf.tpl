@@ -1,6 +1,6 @@
 
 vrrp_script chk_ingress {
-    script "/bin/sh -c 'test -f /etc/keepalived/state/ingress-healthy'"
+    script "/bin/sh -c 'test -f /etc/keepalived-okd/state/ingress-healthy'"
     interval 2
     timeout 2
     rise 2

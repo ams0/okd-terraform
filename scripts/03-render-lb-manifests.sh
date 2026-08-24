@@ -140,11 +140,18 @@ Wants=network-online.target okd-vip-healthcheck.service
 [Service]
 Type=simple
 ExecStartPre=-/usr/bin/podman rm -f okd-keepalived
+ExecStartPre=/bin/mkdir -p /etc/keepalived-okd/state
+# --entrypoint is required. The image's default entrypoint is
+# /var/lib/ipfailover/keepalived/monitor.sh, an ipfailover wrapper that
+# GENERATES its own keepalived.conf into /etc/keepalived and ignores any
+# command passed to it -- it silently replaced our config and then logged
+# "keepalived has no configuration to run".
 ExecStart=/usr/bin/podman run --rm --name okd-keepalived \\
   --net=host --privileged \\
-  -v /etc/keepalived:/etc/keepalived:z \\
+  --entrypoint /usr/sbin/keepalived \\
+  -v /etc/keepalived-okd:/etc/keepalived-okd:z \\
   %(image)s \\
-  /usr/sbin/keepalived -n -l -f /etc/keepalived/keepalived.conf
+  -n -l -f /etc/keepalived-okd/keepalived.conf
 ExecStop=-/usr/bin/podman stop -t 10 okd-keepalived
 Restart=always
 RestartSec=5
@@ -157,7 +164,7 @@ WantedBy=multi-user.target
 def files_and_units(role):
     check_ingress = "1" if role == "master" else "0"
     files = [
-        {"path": "/etc/keepalived/keepalived.conf", "mode": 0o644,
+        {"path": "/etc/keepalived-okd/keepalived.conf", "mode": 0o644,
          "contents": {"source": data_url(render_conf(role))}},
         {"path": "/usr/local/bin/okd-vip-healthcheck.sh", "mode": 0o755,
          "contents": {"source": data_url(open(os.path.join(lb_dir, "vip-healthcheck.sh")).read())}},

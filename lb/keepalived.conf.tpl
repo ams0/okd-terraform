@@ -23,7 +23,7 @@ global_defs {
 
 vrrp_script chk_api {
     ! `test -f` only — the probing happens on the host, see vip-healthcheck.sh
-    script "/bin/sh -c 'test -f /etc/keepalived/state/api-healthy'"
+    script "/bin/sh -c 'test -f /etc/keepalived-okd/state/api-healthy'"
     interval 2
     timeout 2
     rise 2

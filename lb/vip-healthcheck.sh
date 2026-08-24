@@ -9,9 +9,14 @@
 #
 # Runs as a plain loop rather than a systemd timer: one unit instead of two, and
 # a sub-10s interval is awkward to express as a timer anyway.
+#
+# The flags live under /etc/keepalived-okd, NOT /etc/keepalived: the
+# origin-keepalived-ipfailover image's entrypoint generates its own
+# keepalived.conf into /etc/keepalived and would overwrite anything mounted
+# there.
 set -uo pipefail
 
-STATE_DIR=/etc/keepalived/state
+STATE_DIR=/etc/keepalived-okd/state
 INTERVAL="${INTERVAL:-5}"
 
 # 6443 = kube-apiserver. On the bootstrap node this is the temporary control
