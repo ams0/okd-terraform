@@ -176,6 +176,18 @@ points at the file. `proxmox_snippet_path` must match the snippets datastore:
 `<storage path>/snippets`, i.e. `/mnt/pve/<storage-id>/snippets` for a mounted
 store, `/var/lib/vz/snippets` only for the built-in `local`.
 
+Ignition warns that reading fw_cfg is quadratic:
+
+    Reading QEMU fw_cfg takes quadratic time. Consider moving large files or
+    config fragments to a remote URL.
+    Reading config from QEMU fw_cfg: 236/310 KB   [59.8s]
+
+The ~310 KB bootstrap.ign takes roughly 75 seconds to ingest, so the bootstrap
+node visibly lags the masters (whose 2 KB pointer configs are instant). It
+completes fine. If that ever becomes a problem, the fix is the same shape as
+the Azure SAS-stub: serve bootstrap.ign over HTTP and pass a small pointer
+config instead.
+
 ### Image
 
 `proxmox_download_file` pulls the SCOS qemu artifact straight onto a node via

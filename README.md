@@ -221,6 +221,11 @@ instead. `proxmox_snippet_path` must therefore match the snippets datastore:
 mounted store and only `/var/lib/vz/snippets` for the built-in `local` one.
 Confirm with `pvesh get /storage/<id>`.
 
+Ignition reads fw_cfg in quadratic time and says so in the console. The ~310 KB
+`bootstrap.ign` takes roughly 75 seconds to ingest, so the bootstrap node
+visibly lags the masters, whose 2 KB pointer configs are instant. It completes
+fine; serving `bootstrap.ign` over HTTP would be the fix if it ever matters.
+
 ## Variables
 
 See `terraform/variables.tf` for all inputs, and
