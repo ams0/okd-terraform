@@ -31,31 +31,35 @@ variable "proxmox_ssh_agent" {
   default     = true
 }
 
-variable "proxmox_node" {
-  description = "Name of the Proxmox node to place VMs on"
-  type        = string
+variable "proxmox_nodes" {
+  description = "Proxmox nodes to spread cluster VMs across, in placement order (e.g. [\"pve1\",\"pve2\",\"pve3\"]). Masters and workers are assigned round-robin so losing one hypervisor cannot take out the whole control plane. A single-element list pins everything to one node."
+  type        = list(string)
+  validation {
+    condition     = length(var.proxmox_nodes) > 0
+    error_message = "proxmox_nodes must contain at least one node name."
+  }
 }
 
 variable "proxmox_datastore" {
-  description = "Datastore for VM disks"
+  description = "Datastore for VM disks. May be node-local (each node has its own local-lvm) or shared (Ceph RBD). Shared is required if you ever want to live-migrate a node."
   type        = string
   default     = "local-lvm"
 }
 
 variable "proxmox_iso_datastore" {
-  description = "Datastore holding the downloaded SCOS image. Uses the `iso` content type, which is enabled by default."
+  description = "Datastore holding the downloaded SCOS image, using the `iso` content type. MUST be shared across nodes (e.g. CephFS) when proxmox_nodes has more than one entry — the image is downloaded once and every node has to be able to read it."
   type        = string
   default     = "local"
 }
 
 variable "proxmox_snippet_datastore" {
-  description = "Datastore holding the uploaded ignition snippets. Snippets are NOT enabled by default — turn them on under Datacenter > Storage first."
+  description = "Datastore holding the uploaded ignition snippets. Snippets are NOT enabled by default — turn them on under Datacenter > Storage first. MUST be shared (CephFS) when spreading across nodes, and must be filesystem-backed: Ceph RBD cannot hold snippets, only CephFS can."
   type        = string
   default     = "local"
 }
 
 variable "proxmox_snippet_path" {
-  description = "Absolute path to the snippets directory on the Proxmox host, used to build the fw_cfg file= argument. Must correspond to proxmox_snippet_datastore: `local` is /var/lib/vz/snippets, other stores are usually /mnt/pve/<store>/snippets."
+  description = "Absolute path to the snippets directory on the Proxmox host, used to build the fw_cfg file= argument. Must match proxmox_snippet_datastore: the built-in `local` store is /var/lib/vz/snippets; every mounted store (CephFS, NFS, directory) is /mnt/pve/<storage-id>/snippets. Confirm with `pvesm status` on a node."
   type        = string
   default     = "/var/lib/vz/snippets"
 }

@@ -21,7 +21,7 @@
 resource "proxmox_virtual_environment_file" "bootstrap_ign" {
   count = local.single_node ? 0 : 1
 
-  node_name    = var.proxmox_node
+  node_name    = local.upload_node
   datastore_id = var.proxmox_snippet_datastore
   content_type = "snippets"
 
@@ -32,7 +32,7 @@ resource "proxmox_virtual_environment_file" "bootstrap_ign" {
 }
 
 resource "proxmox_virtual_environment_file" "master_ign" {
-  node_name    = var.proxmox_node
+  node_name    = local.upload_node
   datastore_id = var.proxmox_snippet_datastore
   content_type = "snippets"
 
@@ -45,7 +45,7 @@ resource "proxmox_virtual_environment_file" "master_ign" {
 resource "proxmox_virtual_environment_file" "worker_ign" {
   count = local.worker_count > 0 ? 1 : 0
 
-  node_name    = var.proxmox_node
+  node_name    = local.upload_node
   datastore_id = var.proxmox_snippet_datastore
   content_type = "snippets"
 

@@ -42,6 +42,23 @@ locals {
   # In SNO mode the single master boots the bootstrap-in-place ignition.
   control_plane_ign = local.single_node ? local.sno_ign : local.master_ign
 
+  # Placement. Masters and workers go round-robin across proxmox_nodes so a
+  # single hypervisor failure cannot take the whole control plane with it. With
+  # 3 masters over 3+ nodes that is one master per node; with fewer nodes than
+  # masters it degrades gracefully rather than erroring.
+  #
+  # The image and the ignition snippets are uploaded ONCE, via the first node.
+  # That only works because both datastores are shared across the cluster —
+  # a VM on pve3 has to be able to read a snippet written through pve1. See
+  # the proxmox_iso_datastore / proxmox_snippet_datastore descriptions.
+  upload_node = var.proxmox_nodes[0]
+
+  master_nodes = [for i in range(local.master_count) : var.proxmox_nodes[i % length(var.proxmox_nodes)]]
+  worker_nodes = [for i in range(local.worker_count) : var.proxmox_nodes[i % length(var.proxmox_nodes)]]
+
+  # Bootstrap is temporary and its placement does not affect resilience.
+  bootstrap_node = var.proxmox_nodes[0]
+
   # MACs are pinned rather than left to Proxmox so the operator can create
   # matching DHCP reservations once and have them survive destroy/recreate.
   # Layout: <prefix>:<role>:00:<index>, role 00=bootstrap 01=master 02=worker.

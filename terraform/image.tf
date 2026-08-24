@@ -22,7 +22,7 @@
 #
 # The API token needs Datastore.AllocateTemplate plus Sys.Audit and Sys.Modify.
 resource "proxmox_download_file" "scos" {
-  node_name    = var.proxmox_node
+  node_name    = local.upload_node
   datastore_id = var.proxmox_iso_datastore
   content_type = "iso"
 

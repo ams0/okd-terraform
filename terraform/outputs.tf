@@ -22,6 +22,15 @@ output "node_mac_addresses" {
   )
 }
 
+output "node_placement" {
+  description = "Which Proxmox node each VM lands on. Masters are spread round-robin so one hypervisor failure cannot take the whole control plane."
+  value = merge(
+    local.single_node ? {} : { "${local.infra_id}-bootstrap" = local.bootstrap_node },
+    { for i, n in local.master_nodes : "${local.infra_id}-master-${i}" => n },
+    { for i, n in local.worker_nodes : "${local.infra_id}-worker-${i}" => n },
+  )
+}
+
 output "api_url" {
   description = "Cluster API URL"
   value       = "https://api.${local.cluster_domain}:6443"

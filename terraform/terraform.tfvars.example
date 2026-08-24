@@ -1,9 +1,13 @@
 # ---------------------------------------------------------------------------
 # Proxmox connection
 # ---------------------------------------------------------------------------
-proxmox_endpoint  = "https://pve.lan:8006/"
-proxmox_api_token = "root@pam!terraform=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-proxmox_node      = "pve"
+proxmox_endpoint  = "https://pve1.example.lan:8006/"
+proxmox_api_token = "terraform@pve!provider=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# Masters/workers are placed round-robin over this list. With 3 masters over 3
+# nodes, each hypervisor holds exactly one, so losing a node cannot take out
+# the whole control plane. A single-element list pins everything to one node.
+proxmox_nodes = ["pve1", "pve2", "pve3"]
 
 # Snippet upload (the ignition files) goes over SSH, not the REST API.
 proxmox_ssh_username = "root"
@@ -12,10 +16,15 @@ proxmox_ssh_username = "root"
 # proxmox_snippet_datastore under Datacenter > Storage — it is off by default
 # and ignition delivery needs it. The image uses the `iso` content type, which
 # is already enabled.
+# With more than one node in proxmox_nodes, the image and snippet stores MUST
+# be shared: both are uploaded once via the first node, and whichever node runs
+# the VM has to read them. CephFS works; Ceph RBD cannot hold snippets at all.
+# For any mounted store the snippets path is /mnt/pve/<storage-id>/snippets --
+# only the built-in `local` store lives under /var/lib/vz.
 proxmox_datastore         = "local-lvm"
-proxmox_iso_datastore     = "local"
-proxmox_snippet_datastore = "local"
-proxmox_snippet_path      = "/var/lib/vz/snippets"
+proxmox_iso_datastore     = "cephfs"
+proxmox_snippet_datastore = "cephfs"
+proxmox_snippet_path      = "/mnt/pve/cephfs/snippets"
 
 proxmox_bridge = "vmbr0"
 # proxmox_vlan_id = 20
@@ -26,9 +35,9 @@ proxmox_bridge = "vmbr0"
 # api_vip and ingress_vip must be free addresses on machine_network_cidr and
 # must NOT be inside the DHCP pool — keepalived assigns them, not DHCP.
 # ---------------------------------------------------------------------------
-machine_network_cidr = "192.168.1.0/24"
-api_vip              = "192.168.1.10"
-ingress_vip          = "192.168.1.11"
+machine_network_cidr = "192.168.228.0/24"
+api_vip              = "192.168.228.50"
+ingress_vip          = "192.168.228.51"
 
 # Guest-side NIC name keepalived binds the VIPs to. SCOS with a virtio NIC on
 # Proxmox normally gets ens18; check `ip link` on a booted node if the VIPs

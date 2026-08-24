@@ -28,7 +28,7 @@ resource "proxmox_virtual_environment_vm" "bootstrap" {
   count = local.single_node ? 0 : 1
 
   name      = "${local.infra_id}-bootstrap"
-  node_name = var.proxmox_node
+  node_name = local.bootstrap_node
   tags      = concat(local.vm_tags, ["bootstrap"])
 
   description = "OKD bootstrap node for ${local.cluster_domain}. Safe to delete once the control plane is up."
@@ -78,7 +78,7 @@ resource "proxmox_virtual_environment_vm" "master" {
   count = local.master_count
 
   name      = "${local.infra_id}-master-${count.index}"
-  node_name = var.proxmox_node
+  node_name = local.master_nodes[count.index]
   tags      = concat(local.vm_tags, ["master"])
 
   description = "OKD control plane ${count.index} for ${local.cluster_domain}"
@@ -128,7 +128,7 @@ resource "proxmox_virtual_environment_vm" "worker" {
   count = local.worker_count
 
   name      = "${local.infra_id}-worker-${count.index}"
-  node_name = var.proxmox_node
+  node_name = local.worker_nodes[count.index]
   tags      = concat(local.vm_tags, ["worker"])
 
   description = "OKD worker ${count.index} for ${local.cluster_domain}"
