@@ -6,6 +6,29 @@ cert-manager. The bring-up is fully idempotent: destroy and recreate at any
 time and the cluster comes back up with the same `apps.<base_domain>` URL and a
 valid TLS chain.
 
+> ## Which branch?
+>
+> This repository deploys the same OKD-SCOS cluster to two different platforms,
+> one per branch. Neither is a subset of the other — the whole Terraform layer
+> differs, so **do not port changes between them without checking which
+> platform an assumption belongs to**.
+>
+> | Branch | Platform | Load balancing | Node image |
+> |---|---|---|---|
+> | **`main`** (this one) | Azure UPI | Azure Standard LBs | SCOS VHD page blob |
+> | **`proxmox`** | Proxmox VE cluster | keepalived VIPs on the nodes | SCOS qcow2 pulled by PVE |
+>
+> Both keep DNS on Azure DNS and issue the `*.apps` wildcard with cert-manager
+> over DNS-01, so that half of the stack is shared.
+>
+> The Proxmox branch differs in ways that are easy to trip over: it installs
+> with `platform: none` (the `baremetal` platform needs BMC hosts that VMs do
+> not have), so it renders no cloud load balancer and supplies the API and
+> ingress VIPs itself; ignition reaches the guests through the QEMU fw_cfg
+> device rather than `custom_data`; and it has no cloud controller manager, so
+> none of the CCM-versus-Terraform contention this branch works around applies
+> there. See that branch's `README.md` and `CLAUDE.md`.
+
 ## Prerequisites
 
 - [Terraform](https://www.terraform.io/downloads.html) >= 1.0
